@@ -60,14 +60,14 @@ class SelfDistill(object):
         for step in range(1, steps+1):
             # Calculate Y_t
             if self.K.shape[1] < self.K .shape[0]:
-                beta_t = np.matmul(np.matmul(np.linalg.inv(self.K@self.K.T + self.lambd*np.identity(self.K.shape[1])),self.K.T), alpha*self.Y + (1-alpha)*self._Y_distill[step-1])
+                beta_t = np.matmul(np.matmul(np.linalg.inv(self.K.T@self.K + self.lambd*np.identity(self.K.shape[1])),self.K.T), alpha*self.Y + (1-alpha)*self._Y_distill[step-1])
             else:
                 beta_t = np.matmul(np.matmul(self.K.T, np.linalg.inv(self.K@self.K.T + self.lambd*np.identity(self.K.shape[0]))), alpha*self.Y + (1-alpha)*self._Y_distill[step-1])
             self._Y_distill.append(np.matmul(self.K, beta_t))
             
             # Calculate/predict with f_t on x
             if self.K.shape[1] < self.K.shape[0]:
-                K_func_ridge = np.matmul(np.linalg.inv(self.K@self.K.T + self.lambd*np.identity(self.K.shape[1])),self.K.T)
+                K_func_ridge = np.matmul(np.linalg.inv(self.K.T@self.K + self.lambd*np.identity(self.K.shape[1])),self.K.T)
             else:
                 K_func_ridge = np.matmul(self.K.T, np.linalg.inv(self.K@self.K.T + self.lambd*np.identity(self.K.shape[0])))
 
@@ -86,7 +86,7 @@ class SelfDistill(object):
             
         # Calculate limiting solution
         if self.K.shape[1] < self.K.shape[0]:
-            beta_lim = np.matmul(np.matmul(np.linalg.inv(alpha*(self.K@self.K.T) + self.lambd*np.identity(self.K.shape[1])), alpha*self.K.T), self.Y)
+            beta_lim = np.matmul(np.matmul(np.linalg.inv(alpha*(self.K.T@self.K) + self.lambd*np.identity(self.K.shape[1])), alpha*self.K.T), self.Y)
         else:
             beta_lim = np.matmul(np.matmul(alpha*self.K.T, np.linalg.inv(alpha*(self.K@self.K.T) + self.lambd*np.identity(self.K.shape[0]))), self.Y)
 
