@@ -79,7 +79,7 @@ class RVFL_layer(nn.Module):
         self.A_ = A_
         beta_ = self.matrix_inverse(A_merge, target)
         self.beta = beta_
-        X = torch.cat([raw_X,  A_], axis=1)
+        # X = torch.cat([raw_X,  A_], axis=1)
         predict_score = A_merge @ beta_
 
         self.Params['w'] = self.w
@@ -98,7 +98,8 @@ class RVFL_layer(nn.Module):
             self.Params = params
         
         A_ = X @ self.Params.w + self.Params.b
-        A_ = (A_ - self.Params.mean) / self.Params.std
+        # A_ = (A_ - self.Params.mean) / self.Params.std
+        A_ = (A_ - torch.mean(A_, axis=0)) / torch.std(A_, axis=0)
         A_ = A_ + np.repeat(self.Params.b, n_sample, 0)
 
 

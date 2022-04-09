@@ -20,7 +20,7 @@ class Recurser(object):
 
 
 class SelfDistill(object):
-    def __init__(self, X, Y, lambd=1e-6, N=256, scale=2, alpha=0.1):
+    def __init__(self, X, Y, logger=None, lambd=1e-6, N=256, scale=2, alpha=0.1):
         self.X = X
         self.Y = Y
         self.lambd = 2**lambd
@@ -32,6 +32,7 @@ class SelfDistill(object):
         self.w = (2 * np.random.random([N,n_D]) - 1) * scale
         self.b = np.random.random([1,N])
     
+        self.logger = logger
         
         self.distilled_steps = 0
         self._Y_distill = [Y]
@@ -53,9 +54,9 @@ class SelfDistill(object):
         # plt.scatter(self.X, self.Y, marker='x', c='k', label=r'$\mathcal{D}_{\mathrm{train}}$')
         
         # Status print
-        print('---'*5)
-        print('Step\tAccuracy')
-        print('---'*5)
+        self.logger.info('---'*5)
+        self.logger.info('Step\tAccuracy')
+        self.logger.info('---'*5)
         
         # Perform distillation and plot/print
         for step in range(1, steps+1):
@@ -80,10 +81,10 @@ class SelfDistill(object):
             #         plt.plot(x, Y_pred, label=f'$f_{{{step}}}$', color=my_cmap((step-1) / (steps // 10)))
             
             # Print status
-            print(f'{step}\t{self.acc(self.Y, Y_pred):1.5f}')
-        
+            self.logger.info(f'{step}\t{self.acc(self.Y, Y_pred):1.5f}')
+        assert np.isnan(self._Y_pred).sum() == 0
         hard_ensemble = stats.mode(np.array(self._Y_pred).argmax(2),0)[0].squeeze()
-        print(f'Ensemble\t{(self.Y.argmax(1)==hard_ensemble).mean():1.5f}')
+        self.logger.info(f'Ens\t{(self.Y.argmax(1)==hard_ensemble).mean():1.5f}')
         # Calculate limiting solution
         if self.K.shape[1] < self.K.shape[0]:
             beta_lim = np.matmul(np.matmul(np.linalg.inv(alpha*(self.K.T@self.K) + self.lambd*np.identity(self.K.shape[1])), alpha*self.K.T), self.Y)
@@ -101,16 +102,17 @@ class SelfDistill(object):
         # plt.legend(loc='lower left', ncol=steps+2 if steps < 11 else 10+2, mode='expand')
         
         # print('---'*5)
-        print(f'∞\t{self.acc(self.Y, Y_lim):1.5f}')
+        self.logger.info(f'∞\t{self.acc(self.Y, Y_lim):1.5f}')
         self.distilled_steps = steps
         if return_all:
             return self._Y_pred
-        return self.acc(self.Y, Y_lim)
+        return self.acc(self.Y, Y_lim) if self.acc(self.Y,Y_lim) > (self.Y.argmax(1)==hard_ensemble).mean() else (self.Y.argmax(1)==hard_ensemble).mean()
+        # return (self.Y.argmax(1)==hard_ensemble).mean()
     
     def predict(self, X,y):
-        print('---'*5)
-        print('Test\tAccuracy')
-        print('---'*5)
+        self.logger.info('---'*5)
+        self.logger.info('Test\tAccuracy')
+        self.logger.info('---'*5)
         A = self.random_mapping(X)
 
         # Self KD steps:
@@ -118,24 +120,28 @@ class SelfDistill(object):
         for i in range(self.distilled_steps):
             A_ = np.matmul(A, self.beta_t[i])
             preds.append(A_)
-            print(f'Step{i}\t{self.acc(y, A_):1.5f}')
+            self.logger.info(f'Step{i}\t{self.acc(y, A_):1.5f}')
         hard_ensemble = stats.mode(np.array(preds).argmax(2),0)[0].squeeze()
-        print(f'HEns\t{(y.argmax(1)==hard_ensemble).mean():1.5f}')
+        self.logger.info(f'HEns\t{(y.argmax(1)==hard_ensemble).mean():1.5f}')
         A = np.matmul(A, self.beta_lim)
-        print(f'∞\t{self.acc(y, A):1.5f}')
-        return self.acc(A,y) if self.acc(A,y) < (y.argmax(1)==hard_ensemble).mean() else (y==hard_ensemble).mean()
+        self.logger.info(f'∞\t{self.acc(y, A):1.5f}')
+        return self.acc(A,y) if self.acc(A,y) > (y.argmax(1)==hard_ensemble).mean() else (y.argmax(1)==hard_ensemble).mean()
         
     def random_mapping(self, X):
 
         A = X@self.w.T + self.b
-        A = self.sigmoid(A)
 
         A_mean = np.mean(A, axis=0)
         A_std = np.std(A, axis=0)
         A = (A - A_mean) / A_std
 
-        A = A + np.repeat(self.b, X.shape[0], 0)
-        return A
+        A = self.sigmoid(A)
+
+        # A = A + np.repeat(self.b, X.shape[0], 0)
+
+        A_merge = np.concatenate([X, A, np.ones((X.shape[0], 1))], axis=1)
+
+        return A_merge
 
     def sigmoid(self, x):
         return 1 / (1 + np.exp(-x))

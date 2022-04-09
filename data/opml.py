@@ -11,14 +11,17 @@ import torch
 from torch.utils.data import Dataset
 
 class OPML(Dataset):
-    def __init__(self, id=168331, cv=0, train=True):# volkert 
+    def __init__(self, task=None, cv=0, train=True):# volkert 
 
-        task = openml.tasks.get_task(id) 
         # _, self.CV_NUM, _ = task.get_split_dimensions()
         self.N_TYPES = len(task.class_labels)
 
         X,y = task.get_X_and_y()
         X,y = torch.tensor(X), torch.tensor(y)
+        X[torch.isnan(X)] = 0
+
+        X = X-X.mean(0)/X.std(0)
+
         self.cv = cv
         train_indices, test_indices = task.get_train_test_split_indices(repeat=0, fold=cv, sample=0)
         if train is True:
