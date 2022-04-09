@@ -23,7 +23,7 @@ if __name__ == "__main__":
     torch.manual_seed(1)
     rstate = np.random.default_rng(1)
 
-    ID = 168329
+    ID = 168331
     device='cpu'
     # D = UCIDataset('car')
     # trainX, trainY, evalX, evalY, testX, testY, full_train_x, full_train_y = D.getitem(0)

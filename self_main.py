@@ -7,13 +7,13 @@ from functools import partial
 from hyperopt import fmin, tpe, hp, STATUS_OK
 import time
 
-SEED = 0
+SEED = 1
 rstate = np.random.default_rng(SEED)
 np.random.seed(SEED)
 
 def objective(trainX,trainY,nc, args):
     net = SelfDistill(trainX,np.eye(nc)[trainY],**args)
-    acc = net.distill(steps=5)
+    acc = net.distill(steps=10)
     loss = 1-acc
     # loss = F.mse_loss(yhat,trainY)
     # loss = F.mse_loss(yhat,trainY) + F.mse_loss(yhat, train_teacher)
@@ -26,8 +26,8 @@ def objective(trainX,trainY,nc, args):
         }
 
 # ID = 168329 
-ID = 146606 # Higgs
-# ID = 146821
+# ID = 146606 # Higgs
+ID =  168331 # Volkert
 train_d, test_d = OPML(id=ID,cv=1), OPML(id=ID,cv=1,train=False)
 
 NC = train_d.N_TYPES
@@ -45,15 +45,16 @@ best = fmin(
     space=search_space,
     algo=tpe.suggest,
     max_evals=20,
-    rstate=rstate
+    rstate=rstate,
+    verbose=True
 )
 
 best_net = SelfDistill(train_d.X.numpy(),np.eye(NC)[train_d.y],**best)
-best_net.distill(steps=5)
+best_net.distill(steps=10)
 acc = best_net.predict(test_d.X.numpy(),np.eye(NC)[test_d.y.numpy()])
 
 print(acc)
-
+print(best)
 # distiller = SelfDistill(train_d.X.numpy(),np.eye(NC)[train_d.y.numpy()])
 # distiller.distill(alpha=0.5, steps=3)
 # acc=distiller.predict(test_d.X.numpy(),np.eye(NC)[test_d.y.numpy()])
