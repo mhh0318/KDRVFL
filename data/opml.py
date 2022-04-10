@@ -22,7 +22,7 @@ class OPML(Dataset):
 
         X = X[:,~((X == 0).sum(0) == X.shape[0])]
 
-        X = X-X.mean(0)/X.std(0)
+        X = (X-X.mean(0))/X.std(0)
 
         self.cv = cv
         train_indices, test_indices = task.get_train_test_split_indices(repeat=0, fold=cv, sample=0)

@@ -24,7 +24,7 @@ def get_logger(logger_name, log_file, level=logging.INFO):
 SEED = 42
 np.random.seed(SEED)
 SUITE = openml.study.get_suite(218)
-ALL_TASKS = SUITE.tasks[5:10]
+ALL_TASKS = SUITE.tasks
 
 # ALL_TASKS = [168868]
 
