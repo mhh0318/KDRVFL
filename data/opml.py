@@ -20,6 +20,8 @@ class OPML(Dataset):
         X,y = torch.tensor(X), torch.tensor(y)
         X[torch.isnan(X)] = 0
 
+        X = X[:,~((X == 0).sum(0) == X.shape[0])]
+
         X = X-X.mean(0)/X.std(0)
 
         self.cv = cv

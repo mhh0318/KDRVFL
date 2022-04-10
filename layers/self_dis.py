@@ -41,7 +41,7 @@ class SelfDistill(object):
         
     def distill(self, steps=1, return_all=False):
         alpha = self.alpha
-
+        assert np.isnan(self.X).sum() == 0
         self.K = self.random_mapping(self.X)
 
         if self.K.shape[1] < self.K .shape[0]:
