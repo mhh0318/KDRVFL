@@ -10,10 +10,6 @@ from data.uci import UCIDataset
 import torch
 import torch.nn as nn
 
-np.random.seed(32)
-torch.manual_seed(32)
-
-
 
 class RVFL_layer(nn.Module):
     def __init__(self, classes, args, device):
@@ -98,8 +94,8 @@ class RVFL_layer(nn.Module):
             self.Params = params
         
         A_ = X @ self.Params.w + self.Params.b
-        # A_ = (A_ - self.Params.mean) / self.Params.std
-        A_ = (A_ - torch.mean(A_, axis=0)) / torch.std(A_, axis=0)
+        A_ = (A_ - self.Params.mean) / self.Params.std
+        # A_ = (A_ - torch.mean(A_, axis=0)) / torch.std(A_, axis=0)
         A_ = A_ + np.repeat(self.Params.b, n_sample, 0)
 
 

@@ -18,7 +18,7 @@ class OPML(Dataset):
 
         X,y = task.get_X_and_y()
         X,y = torch.tensor(X), torch.tensor(y)
-        X[torch.isnan(X)] = 0
+        X[torch.isnan(X)] = 0.
 
         X = X[:,~((X == 0).sum(0) == X.shape[0])]
 

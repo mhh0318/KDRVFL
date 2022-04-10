@@ -1,14 +1,14 @@
 from data.opml import OPML
 from tqdm import tqdm
 import numpy as np
-from layers.self_dis import SelfDistill
+from layers.self_dis_torch import SelfDistill
 from tqdm import tqdm
 from functools import partial
 from hyperopt import fmin, tpe, hp, STATUS_OK
 import time
 import logging
 import openml
-
+import torch.nn.functional as F
 
 def get_logger(logger_name, log_file, level=logging.INFO):
     l = logging.getLogger(logger_name)
@@ -36,9 +36,9 @@ ALL_TASKS = SUITE.tasks[:1]
 # assert ID in ALL_TASKS
 N_STEP = 1
 A=0.05
-def objective(trainX, trainY, nc, args):
+def objective(trainX, trainY, args):
     logger.info(args)
-    net = SelfDistill(trainX,np.eye(nc)[trainY.astype(int)],logger,alpha=A,**args)
+    net = SelfDistill(trainX,F.one_hot(trainY.long()),logger,alpha=A,**args)
     acc = net.distill(steps=N_STEP)
     loss = 1-acc
     # loss = F.mse_loss(yhat,trainY)
@@ -76,17 +76,17 @@ for ID in ALL_TASKS:
 
 
         best = fmin(
-            fn = partial(objective,train_d.X.numpy(), train_d.y.numpy(), NC),
+            fn = partial(objective,train_d.X, train_d.y),
             space=search_space,
             algo=tpe.suggest,
             max_evals=20,
             rstate=rstate,
-            # verbose=True
+            verbose=True
         )
 
-        best_net = SelfDistill(train_d.X.numpy(),np.eye(NC)[train_d.y.numpy().astype(int)],logger,alpha=A,**best)
+        best_net = SelfDistill(train_d.X,F.one_hot(train_d.y.long()),logger,alpha=A,**best)
         best_net.distill(steps=N_STEP)
-        acc = best_net.predict(test_d.X.numpy(),np.eye(NC)[test_d.y.numpy().astype(int)])
+        acc = best_net.predict(test_d.X,F.one_hot(test_d.y.long()))
 
         TOTAL_ACC.append(acc)
         logger.info(f'Accuracy for FOLD{f}\t{acc}')

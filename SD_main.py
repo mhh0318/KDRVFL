@@ -1,20 +1,15 @@
 from functools import partial
-from layers.ResMLP import *
 from data.opml import OPML
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 from functools import partial
-from layers.ResMLP import *
-from layers.RVFL import *
-from data.uci import UCIDataset
+from layers.RVFL_self import *
 import openml
 from data.opml import OPML
 from hyperopt import fmin, tpe, hp, STATUS_OK
 from torch.nn import functional as F
 import time
 from tqdm import tqdm
-import numpy
-import torch
 
 import logging
 
@@ -33,9 +28,12 @@ def get_logger(logger_name, log_file, level=logging.INFO):
 if __name__ == "__main__":
     # numpy.random.seed(0)
     SEED = 42
+    torch.manual_seed(SEED)
     np.random.seed(SEED)
     SUITE = openml.study.get_suite(218)
-    ALL_TASKS = SUITE.tasks[:1]
+    ALL_TASKS = SUITE.tasks
+    STEPS = 5
+    ALPHA = 0.35
 
     device='cpu'
     # D = UCIDataset('car')
@@ -46,7 +44,7 @@ if __name__ == "__main__":
         rstate = np.random.default_rng(SEED)
         task = openml.tasks.get_task(ID) 
         FOLD = int(task.estimation_parameters['number_folds'])
-        logger = get_logger(logger_name=f'{ID}',log_file=f'./log_base/{ID}.log')
+        logger = get_logger(logger_name=f'{ID}',log_file=f'./log/{ID}.log')
         logger.info(f'{task}')
         print(task)
         TOTAL_ACC = [] 
@@ -60,14 +58,16 @@ if __name__ == "__main__":
             search_space = {
                 'C': hp.uniform('C',-12,6),
                 'N': hp.quniform('N',128,2000,1),
+                # 'alpha': hp.uniform('alpha',0.1,1),
                 'tuning_vector': hp.uniform('tuning_vector',0,10),
             }
 
             def objective(trainX,trainY,args):
-                net = RVFL_layer(classes=NC,args=args,device=device)
-                trainY = F.one_hot(trainY).float()
-                yhat = net.train(X=trainX.to(device),target=trainY.to(device))
-                loss = 1-((yhat.argmax(1).cpu() == trainY.argmax(1)).sum()/ len(yhat))*1.
+                args['alpha'] = ALPHA
+                net = RVFL_layer(classes=NC,args=args,device=device,logger=logger)
+                trainY = F.one_hot(trainY.long()).float()
+                acc = net.train(X=trainX.to(device),Y=trainY.to(device), steps=STEPS)
+                loss = 1-acc
                 return {
                     'loss': loss,
                     'status': STATUS_OK,
@@ -83,10 +83,11 @@ if __name__ == "__main__":
                 max_evals=20,
                 rstate=rstate
             )
-            best_net = RVFL_layer(classes=NC, args=best, device='cpu')
-            _ = best_net.train(train_d.X.to(device),F.one_hot(train_d.y).float().to(device))
-            yhat = best_net.eval(test_d.X.to(device))
-            test_acc =  ((yhat.argmax(1).cpu().numpy() == test_d.y.numpy()).sum() / len(yhat))*100.
+            best['alpha'] = ALPHA
+            best_net = RVFL_layer(classes=NC, args=best, device='cpu',logger=logger)
+            _ = best_net.train(train_d.X.to(device),F.one_hot(train_d.y.long()).float().to(device),steps=STEPS)
+            test_acc = best_net.eval(test_d.X.to(device),F.one_hot(test_d.y.long()).float())
+            # test_acc =  ((yhat.argmax(1).cpu().numpy() == test_d.y.numpy()).sum() / len(yhat))*100.
             TOTAL_ACC.append(test_acc)
             logger.info(f'Accuracy for FOLD{f}\t{test_acc}')
             logger.info(f'Configuration for FOLD{f}\t{best}')

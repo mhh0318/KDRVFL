@@ -21,7 +21,7 @@ class Recurser(object):
 
 
 class SelfDistill(object):
-    def __init__(self, X, Y, logger=None, lambd=1e-6, N=256, scale=2, alpha=0.1):
+    def __init__(self, X, Y, logger=None, lambd=1e-6, N=256, scale=2, alpha=0.1, d='cpu'):
         self.X = X
         self.Y = Y
         self.lambd = 2**lambd
@@ -30,11 +30,11 @@ class SelfDistill(object):
 
         N = int(N)
 
-        self.w = (2 * np.random.random([N,n_D]) - 1) * scale
-        self.b = np.random.random([1,N])
+        self.w = (2 * torch.rand([N,n_D]) - 1) * scale
+        self.b = torch.rand([1,N])
     
         self.logger = logger
-        
+        self.d = d
         self.distilled_steps = 0
         self._Y_distill = [Y]
         self._Y_pred = []
@@ -46,9 +46,11 @@ class SelfDistill(object):
         self.K = self.random_mapping(self.X)
 
         if self.K.shape[1] < self.K .shape[0]:
-            self.K_ridge = np.matmul(np.linalg.inv(np.matmul(self.K.T,self.K) + np.identity(self.K.shape[1])/self.lambd),self.K.T)
+            self.K_ridge = torch.mm(torch.inverse(torch.eye(self.K.shape[1]).to(self.d)/self.lambd+torch.mm(self.K.T,self.K)),self.K.T)
+            # self.K_ridge = np.matmul(np.linalg.inv(np.matmul(self.K.T,self.K) + np.identity(self.K.shape[1])/self.lambd),self.K.T)
         else:
-            self.K_ridge = np.matmul(self.K.T, np.linalg.inv(np.matmul(self.K,self.K.T) + np.identity(self.K.shape[0])/self.lambd))
+            self.K_ridge = torch.mm(self.K.T,torch.inverse(torch.eye(self.K.shape[0]).to(self.d)/self.lambd+torch.mm(self.K,self.K.T)))
+            # self.K_ridge = np.matmul(self.K.T, np.linalg.inv(np.matmul(self.K,self.K.T) + np.identity(self.K.shape[0])/self.lambd))
         # Plot
         # plt.figure()
         # #plt.plot(x, np.sin(x*2*np.pi), 'k', linewidth=1, label='True func.')
@@ -62,17 +64,17 @@ class SelfDistill(object):
         # Perform distillation and plot/print
         for step in range(1, steps+1):
             # Calculate Y_t
-            beta_t = np.matmul(self.K_ridge, alpha*self.Y + (1-alpha)*self._Y_distill[step-1])
+            beta_t = torch.mm(self.K_ridge, alpha*self.Y + (1-alpha)*self._Y_distill[step-1])
             self.beta_t.append(beta_t)
-            self._Y_distill.append(np.matmul(self.K, beta_t))
+            self._Y_distill.append(torch.mm(self.K, beta_t))
             
             # Calculate/predict with f_t on x
 
             # K_func_ridge = np.matmul(np.linalg.inv(self.K.T@self.K + self.lambd*np.identity(self.K.shape[1])),self.K.T)
 
 
-            beta_pred = np.matmul(self.K_ridge, alpha*self.Y + (1-alpha)*self._Y_distill[step-1])
-            Y_pred = np.matmul(self.K, beta_pred)
+            beta_pred =torch.mm(self.K_ridge, alpha*self.Y + (1-alpha)*self._Y_distill[step-1])
+            Y_pred = torch.mm(self.K, beta_pred)
             self._Y_pred.append(Y_pred)
 
             # if steps < 11:
@@ -83,9 +85,9 @@ class SelfDistill(object):
             
             # Print status
             self.logger.info(f'{step}\t{self.acc(self.Y, Y_pred):1.5f}')
-        assert np.isnan(self._Y_pred).sum() == 0
-        hard_ensemble = stats.mode(np.array(self._Y_pred).argmax(2),0)[0].squeeze()
-        self.logger.info(f'Ens\t{(self.Y.argmax(1)==hard_ensemble).mean():1.5f}')
+        assert torch.isnan(torch.cat(self._Y_pred)).sum() == 0
+        hard_ensemble = stats.mode(torch.stack(self._Y_pred,0).argmax(2).numpy(),0)[0].squeeze()
+        self.logger.info(f'Ens\t{(self.Y.argmax(1).numpy()==hard_ensemble).mean():1.5f}')
 
 
         # # Calculate limiting solution
@@ -112,7 +114,7 @@ class SelfDistill(object):
         if return_all:
             return self._Y_pred
         # return self.acc(self.Y, Y_lim) if self.acc(self.Y,Y_lim) > (self.Y.argmax(1)==hard_ensemble).mean() else (self.Y.argmax(1)==hard_ensemble).mean()
-        return (self.Y.argmax(1)==hard_ensemble).mean()
+        return (self.Y.argmax(1).numpy()==hard_ensemble).mean()
         # return self.acc(self.Y, Y_lim)
     
     def predict(self, X,y):
@@ -124,43 +126,39 @@ class SelfDistill(object):
         # Self KD steps:
         preds = []
         for i in range(self.distilled_steps):
-            A_ = np.matmul(A, self.beta_t[i])
+            A_ = torch.mm(A, self.beta_t[i])
             preds.append(A_)
             self.logger.info(f'Step{i}\t{self.acc(y, A_):1.5f}')
-        hard_ensemble = stats.mode(np.array(preds).argmax(2),0)[0].squeeze()
-        self.logger.info(f'HEns\t{(y.argmax(1)==hard_ensemble).mean():1.5f}')
+            
+        hard_ensemble = stats.mode(torch.stack(preds,0).argmax(2).numpy(),0)[0].squeeze()
+        self.logger.info(f'HEns\t{(y.argmax(1).numpy()==hard_ensemble).mean():1.5f}')
 
         # A = np.matmul(A, self.beta_lim)
         # self.logger.info(f'∞\t{self.acc(y, A):1.5f}')
 
         # return self.acc(A,y) if self.acc(A,y) > (y.argmax(1)==hard_ensemble).mean() else (y.argmax(1)==hard_ensemble).mean()
-        return(y.argmax(1)==hard_ensemble).mean()
+        return(y.argmax(1).numpy()==hard_ensemble).mean()
         
     def random_mapping(self, X):
 
         A = X@self.w.T + self.b
 
-        A_mean = np.mean(A, axis=0)
-        A_std = np.std(A, axis=0)
+        A_mean = torch.mean(A, axis=0)
+        A_std = torch.std(A, axis=0)
         A = (A - A_mean) / A_std
 
         # A = A + np.repeat(self.b, X.shape[0], 0)
 
-        A = self.sigmoid(A)
+        A = torch.sigmoid(A)
 
-        A_merge = np.concatenate([X, A, np.ones((X.shape[0], 1))], axis=1)
+        A_merge = torch.cat([X, A, torch.ones((X.shape[0], 1))], axis=1)
 
         return A_merge
 
-    def sigmoid(self, x):
-        return 1 / (1 + np.exp(-x))
-
     def acc(self,x, Y_t):
         prediction = x.argmax(axis=1)
-        return np.mean(prediction == Y_t.argmax(1))
+        return torch.mean((prediction == Y_t.argmax(1)).float())
 
-    def loss(self, x, Y_t):
-        return np.mean(np.square(Y_t - np.sin(x*2*np.pi)))
     
     def get_B(self, return_all=False):
         self.V, self.D, self.VT = np.linalg.svd(self.K, hermitian=True)
