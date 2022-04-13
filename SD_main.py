@@ -31,7 +31,7 @@ if __name__ == "__main__":
     torch.manual_seed(SEED)
     np.random.seed(SEED)
     SUITE = openml.study.get_suite(218)
-    ALL_TASKS = SUITE.tasks
+    ALL_TASKS = SUITE.tasks[4:]
     STEPS = 5
     ALPHA = 0.35
 
