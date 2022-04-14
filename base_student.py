@@ -35,7 +35,7 @@ if __name__ == "__main__":
     SEED = 42
     np.random.seed(SEED)
     SUITE = openml.study.get_suite(218)
-    ALL_TASKS = SUITE.tasks[:1]
+    ALL_TASKS = SUITE.tasks
 
     device='cpu'
     # D = UCIDataset('car')
@@ -65,7 +65,7 @@ if __name__ == "__main__":
 
             def objective(trainX,trainY,args):
                 net = RVFL_layer(classes=NC,args=args,device=device)
-                trainY = F.one_hot(trainY).float()
+                trainY = F.one_hot(trainY.long()).float()
                 yhat = net.train(X=trainX.to(device),target=trainY.to(device))
                 loss = 1-((yhat.argmax(1).cpu() == trainY.argmax(1)).sum()/ len(yhat))*1.
                 return {
@@ -84,9 +84,9 @@ if __name__ == "__main__":
                 rstate=rstate
             )
             best_net = RVFL_layer(classes=NC, args=best, device='cpu')
-            _ = best_net.train(train_d.X.to(device),F.one_hot(train_d.y).float().to(device))
+            _ = best_net.train(train_d.X.to(device),F.one_hot(train_d.y.long()).float().to(device))
             yhat = best_net.eval(test_d.X.to(device))
-            test_acc =  ((yhat.argmax(1).cpu().numpy() == test_d.y.numpy()).sum() / len(yhat))*100.
+            test_acc =  ((yhat.argmax(1).cpu().numpy() == test_d.y.numpy()).sum() / len(yhat))
             TOTAL_ACC.append(test_acc)
             logger.info(f'Accuracy for FOLD{f}\t{test_acc}')
             logger.info(f'Configuration for FOLD{f}\t{best}')

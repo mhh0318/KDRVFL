@@ -1,7 +1,7 @@
 from pathlib import Path
 from collections import OrderedDict
 
-files = list(Path('log').glob('*'))
+files = list(Path('log_base').glob('*'))
 
 k = OrderedDict()
 
